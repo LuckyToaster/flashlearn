@@ -7,8 +7,7 @@
 #define MAX_WORDS 50
 #define WORD_LEN 50
 
-typedef struct
-{
+typedef struct {
     char name[WORD_LEN];
     char german[MAX_WORDS][WORD_LEN];
     char english[MAX_WORDS][WORD_LEN];
@@ -20,6 +19,7 @@ bundle_t* new_bundle();
 bundle_t* load_bundles(FILE* f);
 bundle_t* new_from_file(FILE* f, char* name);
 void save_bundle(FILE *f);
+void print_bundle(bundle_t* bundle);
 void print_bundles(bundle_t *bundles, size_t size);
 void play();
 
@@ -30,14 +30,16 @@ void get_input_int(int *dst, char *msg);
 void get_input_str(char *dst, size_t dst_len, char *msg);
 FILE* open_file(const char *path, char *mode);
 size_t file_size(FILE *f);
+void replace_char(char* str, char src, char dst);
 
-const char CONFIG_PATH[] = "flashlearn.bin";
+const char CONFIG_PATH[] = "configs/flashlearn.bin";
 const char NAME[] = "NAME\n\tFLASHLEARN - make bundles of flashcards and play a word memorisation game\n";
 const char SYNOPSIS[] = "SYNOPSIS\n\tflashlang [OPTION]\n";
 const char DESCRIPTION[] = "DESCRIPTION:\n\t-p, --print\tPrint all the bundles\n\t -h, --help\tPrint this menu\n\t-n, --new\tMake new word bundle\n";
 
+
 int main(int argc, char **argv) {
-    if (argc > 2) {
+    if (argc > 3) {
         printf("%s", DESCRIPTION);
         return 1;
     }
@@ -48,33 +50,17 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
+    if (argc == 3 && (strcmp(argv[1], "-f") == 0 || strcmp(argv[1], "--file") == 0)) {
+        FILE* f2 = open_file(argv[2], "r");
+        bundle_t* bunda = new_from_file(f2, argv[2]);
+        fclose(f2);
+        print_bundle(bunda);
+        fwrite(bunda, sizeof(bundle_t), 1, f);
+        free(bunda);
+    }
+
     bundle_t* bundles = load_bundles(f);
     size_t bundle_n = file_size(f) / sizeof(bundle_t);
-
-    
-    FILE* f2 = open_file("verbs2", "rb");
-    bundle_t *v2 = new_from_file(f2, "verbs 2");
-    fclose(f2);
-
-    FILE *f3 = open_file("verbs3", "rb");
-    bundle_t *v3 = new_from_file(f3, "verbs 3");
-    fclose(f3);
-
-    FILE *f4 = open_file("verbs4", "rb");
-    bundle_t *v4 = new_from_file(f4, "verbs 4");
-    fclose(f4);
-
-    print_bundles(v2, 1);
-    print_bundles(v3, 1);
-    print_bundles(v4, 1);
-
-    fwrite(v2, sizeof(bundle_t), 1, f);
-    fwrite(v3, sizeof(bundle_t), 1, f);
-    fwrite(v4, sizeof(bundle_t), 1, f);
-
-    free(v2);
-    free(v3);
-    free(v4);
 
     if (argc == 1) play(bundles, bundle_n);
 
@@ -96,23 +82,27 @@ int main(int argc, char **argv) {
 }
 
 
-bundle_t *new_from_file(FILE *f, char* name) {
+bundle_t* new_from_file(FILE *f, char* name) {
     bundle_t* b = (bundle_t*) malloc(sizeof(bundle_t));
-    strcpy(b->name, name);
+    char line[100]; 
+    int i = 0;
 
-    int i = 0, e = 0;
-    char line[100];
-    while (fgets(line, sizeof(line), f) != NULL) {
-        char* token = strtok(line, "-");
-        while (token != NULL) {
-            trim(token); 
-            if (e % 2 == 0) strcpy(b->english[i], token);
-            else strcpy(b->german[i], token);
-            token = strtok(NULL, "-");
-            e++;
-        } 
+    while (NULL != fgets(line, 100, f)) {
+        char* english_token = strtok(line, "-");
+        char* german_token = strtok(NULL, "-");
+
+        trim(english_token);
+        trim(german_token);
+
+        memcpy(b->english[i], english_token, strlen(english_token));
+        strcpy(b->german[i], german_token);
+
+        printf("b->english[i]: %s, b->german[i]: %s\n", b->english[i], b->german[i]);
         i++;
     }
+
+    replace_char(name, '_', ' ');
+    strcpy(b->name, name);
     b->word_count = i;
     return b;
 }
@@ -145,6 +135,7 @@ bundle_t *new_bundle() {
     return b;
 }
 
+
 bundle_t *load_bundles(FILE *f) {
     size_t bundle_n = file_size(f) / sizeof(bundle_t);
     bundle_t *bundles = (bundle_t *)malloc(sizeof(bundle_t) * bundle_n);
@@ -152,11 +143,13 @@ bundle_t *load_bundles(FILE *f) {
     return bundles;
 }
 
+
 void get_input_str(char *dst, size_t dst_len, char *msg) {
     printf("%s", msg);
     fgets(dst, dst_len, stdin);
     trim(dst);
 }
+
 
 void get_input_int(int *dst, char *msg) {
     printf("%s", msg);
@@ -164,10 +157,12 @@ void get_input_int(int *dst, char *msg) {
     clear_stdin();
 }
 
+
 void clear_stdin() {
     int c;
     while ((c = getchar()) != '\n');
 }
+
 
 void trim(char *str) {
     char *start = str;
@@ -180,6 +175,7 @@ void trim(char *str) {
     if (start != str) memmove(str, start, end - start + 2);
 }
 
+
 FILE *open_file(const char *path, char *mode) {
     FILE *f = fopen(path, mode);
     if (f == NULL)
@@ -190,6 +186,7 @@ FILE *open_file(const char *path, char *mode) {
     return f;
 }
 
+
 size_t file_size(FILE *f) {
     fseek(f, 0, SEEK_END);
     size_t res = ftell(f);
@@ -197,14 +194,28 @@ size_t file_size(FILE *f) {
     return res;
 }
 
+
+void replace_char(char* str, char src, char dst) {
+    while (*str != '\0') {
+        if (*str == src) *str = dst;
+        str++;
+    }
+}
+
+
 void print_bundles(bundle_t *bundles, size_t size) {
     for (int i = 0; i < size; i++) {
-        printf("%s:\n", bundles[i].name);
-        for (int k = 0; k < bundles[i].word_count; k++)
-            printf("\t%s => %s\n", bundles[i].german[k], bundles[i].english[k]);
+        print_bundle(&bundles[i]);
         printf("\n");
     }
 }
+
+void print_bundle(bundle_t* b) {
+    printf("%s:\n", b->name);
+    for (int k = 0; k < b->word_count; k++) 
+        printf("\t%s  =>  %s\n", b->german[k], b->english[k]);
+}
+
 
 void play(bundle_t *bundles, size_t size) {
     srand(time(NULL));
