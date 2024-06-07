@@ -18,17 +18,20 @@ typedef struct {
 bundle_t* new_bundle();
 bundle_t* load_bundles(FILE* f);
 bundle_t* new_from_file(FILE* f, char* name);
+void free_bundles(bundle_t* bundles, size_t size);
 void save_bundle(FILE *f);
 void print_bundle(bundle_t* bundle);
-void print_bundles(bundle_t *bundles, size_t size);
-void play();
+void print_bundles(bundle_t* bundles, size_t size);
+void play_translate(bundle_t* bundles, size_t size);
+void play_translation(bundle_t* bundles, size_t size);
 
 // helper functions
 void clear_stdin();
 void trim(char *str);
 void get_input_int(int *dst, char *msg);
 void get_input_str(char *dst, size_t dst_len, char *msg);
-FILE* open_file(const char *path, char *mode);
+FILE* open_file(const char* path, char *mode);
+FILE* open_config(const char* path, char* mode);
 size_t file_size(FILE *f);
 void replace_char(char* str, char src, char dst);
 
@@ -39,41 +42,43 @@ const char DESCRIPTION[] = "DESCRIPTION:\n\t-p, --print\tPrint all the bundles\n
 
 
 int main(int argc, char **argv) {
-    if (argc > 3) {
+    if (argc > 3 || argc < 2) {
         printf("%s", DESCRIPTION);
         return 1;
     }
 
-    FILE* f = open_file(CONFIG_PATH, "ab+");
-    if (file_size(f) < sizeof(bundle_t) && argc == 1) {
-        printf("Config File '%s' appears empty\n", CONFIG_PATH);
-        exit(1);
-    }
-
-    if (argc == 3 && (strcmp(argv[1], "-f") == 0 || strcmp(argv[1], "--file") == 0)) {
-        FILE* f2 = open_file(argv[2], "r");
-        bundle_t* bunda = new_from_file(f2, argv[2]);
-        fclose(f2);
-        print_bundle(bunda);
-        fwrite(bunda, sizeof(bundle_t), 1, f);
-        free(bunda);
-    }
-
+    FILE* f = open_config(CONFIG_PATH, "ab+");
     bundle_t* bundles = load_bundles(f);
     size_t bundle_n = file_size(f) / sizeof(bundle_t);
 
-    if (argc == 1) play(bundles, bundle_n);
+    if (argc == 2) {
+        if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)
+            printf("%s%s%s", NAME, SYNOPSIS, DESCRIPTION);
 
-    if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)
-        printf("%s%s%s", NAME, SYNOPSIS, DESCRIPTION);
+        else if (strcmp(argv[1], "-p") == 0 || strcmp(argv[1], "--print") == 0)
+            print_bundles(bundles, bundle_n);
 
-    else if (strcmp(argv[1], "-p") == 0 || strcmp(argv[1], "--print") == 0)
-        print_bundles(bundles, bundle_n);
+        else if (strcmp(argv[1], "-n") ==0 || strcmp(argv[1], "--new") == 0) {
+            bundle_t* b = new_bundle();
+            fwrite(b, sizeof(bundle_t), 1, f);
+            free(b);
+        }
+    }
 
-    else if (strcmp(argv[1], "-n") ==0 || strcmp(argv[1], "--new") == 0) {
-        bundle_t* b = new_bundle();
-        fwrite(b, sizeof(bundle_t), 1, f);
-        free(b);
+    if (argc == 3) {
+        if (strcmp(argv[1], "-l") == 0 || strcmp(argv[1], "--learn") == 0) {
+            if (strcmp(argv[2], "ez") == 0) play_translation(bundles, bundle_n);
+            if (strcmp(argv[2], "hard") == 0) play_translate(bundles, bundle_n);
+        }
+
+        if (strcmp(argv[1], "-f") == 0 || strcmp(argv[1], "--file") == 0) {
+            FILE* f2 = open_file(argv[2], "r");
+            bundle_t* bunda = new_from_file(f2, argv[2]);
+            fclose(f2);
+            print_bundle(bunda);
+            fwrite(bunda, sizeof(bundle_t), 1, f);
+            free(bunda);
+        }
     }
 
     fclose(f);
@@ -108,7 +113,7 @@ bundle_t* new_from_file(FILE *f, char* name) {
 }
 
 
-bundle_t *new_bundle() {
+bundle_t* new_bundle() {
     bundle_t *b = (bundle_t *)malloc(sizeof(bundle_t));
     get_input_str(b->name, WORD_LEN, "Bundle name? >> ");
     get_input_int(&b->word_count, "Number of words? >> ");
@@ -136,11 +141,15 @@ bundle_t *new_bundle() {
 }
 
 
-bundle_t *load_bundles(FILE *f) {
+bundle_t* load_bundles(FILE *f) {
     size_t bundle_n = file_size(f) / sizeof(bundle_t);
     bundle_t *bundles = (bundle_t *)malloc(sizeof(bundle_t) * bundle_n);
     fread(bundles, sizeof(bundle_t), bundle_n, f);
     return bundles;
+}
+
+void free_bundles(bundle_t* bundles, size_t size) {
+    for (int i = 0; i < size; i++) free(&bundles[i]);
 }
 
 
@@ -178,10 +187,19 @@ void trim(char *str) {
 
 FILE *open_file(const char *path, char *mode) {
     FILE *f = fopen(path, mode);
-    if (f == NULL)
-    {
+    if (f == NULL) {
         perror("Couldn't open config file");
         exit(EXIT_FAILURE);
+    }
+    return f;
+}
+
+
+FILE* open_config(const char* path, char* mode) {
+    FILE* f = open_file(path, mode); 
+    if (file_size(f) < sizeof(bundle_t)) {
+        printf("Config File '%s' appears empty\n", CONFIG_PATH);
+        exit(1);
     }
     return f;
 }
@@ -210,6 +228,7 @@ void print_bundles(bundle_t *bundles, size_t size) {
     }
 }
 
+
 void print_bundle(bundle_t* b) {
     printf("%s:\n", b->name);
     for (int k = 0; k < b->word_count; k++) 
@@ -217,15 +236,14 @@ void print_bundle(bundle_t* b) {
 }
 
 
-void play(bundle_t *bundles, size_t size) {
+void play_translation(bundle_t *bundles, size_t size) {
     srand(time(NULL));
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 6; i++) {
         bundle_t bundle = bundles[rand() % size];
 
         char guesses = 3;
-        char guess[WORD_LEN];
-        char msg[100];
+        char guess[WORD_LEN], msg[100];
         int idx;
 
         while (guesses > 0) {
@@ -234,6 +252,30 @@ void play(bundle_t *bundles, size_t size) {
             get_input_str(guess, WORD_LEN, msg);
 
             if (0 != strcmp(guess, bundle.english[idx])) {
+                printf("Nope, its '%s'\n", bundle.english[idx]);
+                guesses--;
+            }
+        } printf("Next ... Boonda!\n");
+    } printf("YOU DIED. WOMP WOMP! :()\n");
+}
+
+
+void play_translate(bundle_t *bundles, size_t size) {
+    srand(time(NULL));
+
+    for (int i = 0; i < 6; i++) {
+        bundle_t bundle = bundles[rand() % size];
+
+        char guesses = 3;
+        char guess[WORD_LEN], msg[100];
+        int idx;
+
+        while (guesses > 0) {
+            idx = rand() % bundle.word_count;
+            sprintf(msg, "What is '%s'? >> ", bundle.english[idx]);
+            get_input_str(guess, WORD_LEN, msg);
+
+            if (0 != strcmp(guess, bundle.german[idx])) {
                 printf("Nope, its '%s'\n", bundle.english[idx]);
                 guesses--;
             }
