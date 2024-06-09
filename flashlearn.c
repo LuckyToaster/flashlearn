@@ -148,6 +148,7 @@ bundle_t* load_bundles(FILE *f) {
     return bundles;
 }
 
+
 void free_bundles(bundle_t* bundles, size_t size) {
     for (int i = 0; i < size; i++) free(&bundles[i]);
 }
@@ -239,10 +240,10 @@ void print_bundle(bundle_t* b) {
 void play_translation(bundle_t *bundles, size_t size) {
     srand(time(NULL));
 
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 10; i++) {
         bundle_t bundle = bundles[rand() % size];
 
-        char guesses = 3;
+        char guesses = 6;
         char guess[WORD_LEN], msg[100];
         int idx;
 
@@ -256,17 +257,17 @@ void play_translation(bundle_t *bundles, size_t size) {
                 guesses--;
             }
         } printf("Next ... Boonda!\n");
-    } printf("YOU DIED. WOMP WOMP! :()\n");
+    } printf("ALRIGHT, NICE SESH\n");
 }
 
 
 void play_translate(bundle_t *bundles, size_t size) {
     srand(time(NULL));
 
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 10; i++) {
         bundle_t bundle = bundles[rand() % size];
 
-        char guesses = 3;
+        char guesses = 6;
         char guess[WORD_LEN], msg[100];
         int idx;
 
@@ -276,9 +277,9 @@ void play_translate(bundle_t *bundles, size_t size) {
             get_input_str(guess, WORD_LEN, msg);
 
             if (0 != strcmp(guess, bundle.german[idx])) {
-                printf("Nope, its '%s'\n", bundle.english[idx]);
+                printf("Nope, its '%s'\n", bundle.german[idx]);
                 guesses--;
             }
         } printf("Next ... Boonda!\n");
-    } printf("YOU DIED. WOMP WOMP! :()\n");
+    } printf("ALRIGHT, NICE SESH\n");
 }
